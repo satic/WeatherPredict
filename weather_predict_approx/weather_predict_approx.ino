@@ -60,6 +60,8 @@ void setup() {
   servo.write(servo_0);            // увести серво в крайнее левое положение
   delay(1000);
   int voltage = readVcc();         // считать напряжение питания
+  Serial.print("setup: Напряжения = ");
+  Serial.println(voltage);
 
   // перевести его в диапазон поворота вала сервомашинки
   voltage = map(voltage, battery_min, battery_max, servo_0, servo_180);
@@ -70,6 +72,8 @@ void setup() {
   delay(2000);
   digitalWrite(servo_Vcc, 0);      // отключить серво
   pressure = aver_sens();          // найти текущее давление по среднему арифметическому
+  Serial.print("setup: Давление = ");
+  Serial.println(pressure);
   for (byte i = 0; i < 6; i++) {   // счётчик от 0 до 5
     pressure_array[i] = pressure;  // забить весь массив текущим давлением
     time_array[i] = i;             // забить массив времени числами 0 - 5
@@ -78,8 +82,11 @@ void setup() {
 
 void loop() {
   if (wake_flag) {
+    Serial.println("Новый замер:");
     delay(500);
     pressure = aver_sens();                          // найти текущее давление по среднему арифметическому
+    Serial.print("Давление = ");
+    Serial.println(pressure);
     for (byte i = 0; i < 5; i++) {                   // счётчик от 0 до 5 (да, до 5. Так как 4 меньше 5)
       pressure_array[i] = pressure_array[i + 1];     // сдвинуть массив давлений КРОМЕ ПОСЛЕДНЕЙ ЯЧЕЙКИ на шаг назад
     }
@@ -103,15 +110,23 @@ void loop() {
     // Ответ: а затем, что ардуинка не хочет считать такие большие числа сразу, и обязательно где-то наё*бывается,
     // выдавая огромное число, от которого всё идёт по пи*зде. Почему с матами? потому что устал отлаживать >:O
     delta = a * 6;                   // расчёт изменения давления
+    Serial.print("Давление изменилось на ");
+    Serial.println(delta);
 
     angle = map(delta, -250, 250, servo_0, servo_180);  // пересчитать в угол поворота сервы
     angle = constrain(angle, 0, 180);                   // ограничить диапазон
+    Serial.print("Угол = ");
+    Serial.println(angle);
 
     // дальше такая фишка: если угол несильно изменился с прошлого раза, то нет смысла лишний раз включать серву
-    // и тратить энергию/жужжать. Так что находим разницу, и если изменение существенное - то поворачиваем стрелку    
+    // и тратить энергию/жужжать. Так что находим разницу, и если изменение существенное - то поворачиваем стрелку
+    Serial.print("Отклонение угла = ");
+    Serial.println(abs(angle - last_angle));
     if (abs(angle - last_angle) > 7) move_arrow = 1;
 
     if (move_arrow) {
+      Serial.println("Поворот стрелки");
+
       last_angle = angle;
       digitalWrite(servo_Vcc, 1);      // подать питание на серво
       delay(300);                      // задержка для стабильности
@@ -121,14 +136,24 @@ void loop() {
       move_arrow = 0;
     }
 
-    if (readVcc() < battery_min) LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); // вечный сон если акум сел
+    if (readVcc() < battery_min)
+    {
+      Serial.println("Вечный сон");
+      LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); // вечный сон если акум сел
+    }
+
     wake_flag = 0;
     delay(10);                       // задержка для стабильности
   }
 
+  Serial.print("Сон 8 сек");
   LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);      // спать 8 сек. mode POWER_OFF, АЦП выкл
   sleep_count++;            // +1 к счетчику просыпаний
+  Serial.print("Счетчик = ");
+  Serial.println(sleep_count);
+
   if (sleep_count >= 70) {  // если время сна превысило 10 минут (75 раз по 8 секунд - подгон = 70)
+    Serial.println("Запуск нового замера");
     wake_flag = 1;          // рарешить выполнение расчета
     sleep_count = 0;        // обнулить счетчик
     delay(2);               // задержка для стабильности
